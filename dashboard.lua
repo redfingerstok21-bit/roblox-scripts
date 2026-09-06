@@ -1,5 +1,5 @@
 -- ==========================================================
--- REVISED DASHBOARD SCRIPT (FIXED STATS & PET FILTER)
+-- REVISED DASHBOARD SCRIPT (K,M,B,T FORMAT & CLEAN PET SCANNER)
 -- ==========================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -11,10 +11,21 @@ local UPDATE_INTERVAL = 5
 
 local startTime = os.time()
 
--- 1. Scan Best Value Pet & Divine Rarity (Abaikan UI Tombol)
-local function scanPetsData()
+-- Fungsi Konversi Angka ke K, M, B, T, Q
+local function formatNumber(n)
+    n = tonumber(n)
+    if not n then return "0" end
+    if n >= 1e15 then return string.format("%.2fQ", n / 1e15) end
+    if n >= 1e12 then return string.format("%.2fT", n / 1e12) end
+    if n >= 1e9 then return string.format("%.2fB", n / 1e9) end
+    if n >= 1e6 then return string.format("%.2fM", n / 1e6) end
+    if n >= 1e3 then return string.format("%.2fK", n / 1e3) end
+    return tostring(math.floor(n))
+end
+
+-- 1. Scan Best Value Pet (Filter Teks UI Sistem)
+local function scanBestPet()
     local bestPetName = "-"
-    local bestDivineName = "-"
 
     pcall(function()
         local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -22,20 +33,19 @@ local function scanPetsData()
             for _, label in ipairs(playerGui:GetDescendants()) do
                 if label:IsA("TextLabel") and label.Visible then
                     local txt = label.Text
-                    local parentName = label.Parent.Name
                     
-                    -- Filter out tombol UI (seperti PlusEquip, Buy, Equip)
-                    if not string.find(txt, "PlusEquip") and not string.find(txt, "EQUIP") and not string.find(txt, "Buy") then
-                        -- Cek jika ada Rarity Divine
-                        if string.find(string.lower(txt), "divine") then
-                            bestDivineName = label.Parent:FindFirstChild("PetName") and label.Parent.PetName.Text or txt
-                        end
-                        
-                        -- Mengambil nama pet pertama yang valid dari inventory / equipped
-                        if bestPetName == "-" and (string.find(parentName, "Pet") or string.find(parentName, "Slot") or string.find(parentName, "Item")) then
-                            if txt ~= "" and not tonumber(txt) then
-                                bestPetName = txt
-                            end
+                    -- Hindari teks-teks UI sistem / aksi
+                    local isBlacklisted = string.find(txt, "Select") or string.find(txt, "Fuse") or 
+                                         string.find(txt, "PlusEquip") or string.find(txt, "EQUIP") or 
+                                         string.find(txt, "Buy") or string.find(txt, "Active") or
+                                         string.find(txt, "Divine Trail")
+                    
+                    if not isBlacklisted and txt ~= "" and not tonumber(txt) then
+                        -- Ambil nama pet yang valid
+                        local parentName = label.Parent.Name
+                        if string.find(parentName, "Pet") or string.find(parentName, "Slot") or string.find(parentName, "Item") or string.find(parentName, "Card") then
+                            bestPetName = txt
+                            break
                         end
                     end
                 end
@@ -43,19 +53,31 @@ local function scanPetsData()
         end
     end)
 
-    return bestPetName, bestDivineName
+    -- Alternatif pemindaian internal folder
+    if bestPetName == "-" then
+        local petFolder = LocalPlayer:FindFirstChild("Pets") or LocalPlayer:FindFirstChild("Inventory")
+        if petFolder then
+            for _, pet in ipairs(petFolder:GetChildren()) do
+                if pet.Name ~= "" then
+                    bestPetName = pet.Name
+                    break
+                end
+            end
+        end
+    end
+
+    return bestPetName
 end
 
--- 2. Membaca Stats Income/s dan Speed Secara Fleksibel
+-- 2. Membaca & Format Stats Income/s dan Speed
 local function getGameStats()
     local incomeText = "0/s"
     local speedText = "0"
 
-    -- Cara 1: Cek dari Humanoid WalkSpeed & Leaderstats
     pcall(function()
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
-            speedText = tostring(math.floor(char.Humanoid.WalkSpeed))
+            speedText = formatNumber(char.Humanoid.WalkSpeed)
         end
         
         local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
@@ -63,33 +85,13 @@ local function getGameStats()
             for _, stat in ipairs(leaderstats:GetChildren()) do
                 local name = string.lower(stat.Name)
                 if string.find(name, "money") or string.find(name, "cash") or string.find(name, "income") then
-                    incomeText = tostring(stat.Value) .. "/s"
+                    incomeText = formatNumber(stat.Value) .. "/s"
                 elseif string.find(name, "speed") then
-                    speedText = tostring(stat.Value)
+                    speedText = formatNumber(stat.Value)
                 end
             end
         end
     end)
-
-    -- Cara 2: Pindai Seluruh UI Teks jika Leaderstats kosong
-    if incomeText == "0/s" or speedText == "0" then
-        pcall(function()
-            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-            if playerGui then
-                for _, label in ipairs(playerGui:GetDescendants()) do
-                    if label:IsA("TextLabel") and label.Visible then
-                        local txt = label.Text
-                        -- Mencari pola format angka K/M/B/T dengan /s atau SPD
-                        if string.find(txt, "/s") or (string.find(txt, "M") and string.find(label.Parent.Name, "Money")) then
-                            incomeText = txt
-                        elseif (string.find(txt, "SPD") or string.find(label.Parent.Name, "Speed")) and not string.find(txt, "Plus") then
-                            speedText = txt
-                        end
-                    end
-                end
-            end
-        end)
-    end
 
     return incomeText, speedText
 end
@@ -113,7 +115,7 @@ end
 
 -- 4. Pengiriman Data ke Dashboard Vercel
 local function sendDashboardData()
-    local bestPet, divinePet = scanPetsData()
+    local bestPet = scanBestPet()
     local incomeSec, currentSpeed = getGameStats()
     local petInfo = getPetInfo()
 
@@ -124,7 +126,6 @@ local function sendDashboardData()
         pass = SECRET_PASS,
         username = LocalPlayer.Name,
         bestPet = bestPet,
-        divinePet = divinePet,
         cash = incomeSec,
         speed = currentSpeed,
         equippedPets = petInfo,
