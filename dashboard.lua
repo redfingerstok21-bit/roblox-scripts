@@ -1,5 +1,5 @@
 -- ==========================================================
--- STRICT BEST PET SCANNER (STRICT QA & UI BUTTON FILTER)
+-- STEAL AN EGG - SPECIFIC BEST PET DETECTOR
 -- ==========================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -11,35 +11,54 @@ local UPDATE_INTERVAL = 5
 
 local startTime = os.time()
 
--- 1. Konversi Format Angka Roblox Ke Angka Nyata (Sambil Memblokir "Qa" & UI Palsu)
-local function parseRobloxValue(str)
-    if not str or type(str) ~= "string" then return 0 end
+-- Database Hirarki Rarity & Pet Game "Steal an Egg" (Nilai lebih tinggi = Income/Value lebih tinggi)
+local PET_DATABASE = {
+    -- Divine (Tier 10)
+    ["kitsune"] = 1000, ["unicorn"] = 1000, ["dreadscale"] = 1000, ["mecha dreadscale"] = 1000,
     
-    local lower = string.lower(str)
+    -- Divine / High Secret Variants
+    ["nightflame"] = 950, ["phoenix"] = 950,
     
-    -- Filter ketat: Abaikan kata-kata UI, tombol, dan istilah "qa" / "quick"
-    if string.find(lower, "quick") or string.find(lower, "equip") or string.find(lower, "fuse") or 
-       string.find(lower, "buy") or string.find(lower, "sell") or string.find(lower, "would") or 
-       string.find(lower, "qa") or string.find(lower, "quality") or string.find(lower, "upgrade") then
-        return 0
-    end
+    -- Eternal (Tier 9)
+    ["gorilla king"] = 900, ["ice dragon"] = 900, ["oni tiger"] = 900, 
+    ["eternal moon dragon"] = 900, ["mosasaurus"] = 900, ["krakenoid"] = 900,
+    
+    -- Secret (Tier 8)
+    ["king snake"] = 800, ["yeti"] = 800, ["magma dragon"] = 800, 
+    ["stag"] = 800, ["cosmic dragon"] = 800, ["mutant shark"] = 800, ["crocodon"] = 800,
+    
+    -- Cosmic (Tier 7)
+    ["leviathan"] = 700, ["royal sphinx"] = 700, ["king mammoth"] = 700, 
+    ["ember mammoth"] = 700, ["koi"] = 700, ["snowy owl"] = 700, ["crawler"] = 700,
+    
+    -- Mythic (Tier 6)
+    ["tiger"] = 600, ["spider"] = 600, ["sabertooth tiger"] = 600, ["mammoth"] = 600,
+    ["chillin chilli"] = 600, ["red panda"] = 600, ["cosmic gorilla"] = 600, 
+    ["ankylosaurus"] = 600, ["froggo"] = 600,
+    
+    -- Legendary (Tier 5)
+    ["brr brr patapim"] = 500, ["axolotl"] = 500, ["snake"] = 500, ["parrot"] = 500,
+    ["polar bear"] = 500, ["fire snake"] = 500, ["salamander"] = 500, 
+    ["cosmic gecko"] = 500, ["t-rex"] = 500, ["scorpio"] = 500,
+    
+    -- Epic (Tier 4)
+    ["fox"] = 400, ["bear"] = 400, ["trulimero trulicina"] = 400, ["swan"] = 400,
+    ["tob tobi tob tob"] = 400, ["crocodile"] = 400, ["walrus"] = 400, 
+    ["magma turtle"] = 400, ["crane"] = 400,
+    
+    -- Rare (Tier 3)
+    ["owl"] = 300, ["raccoon"] = 300, ["turtle"] = 300, ["camel"] = 300,
+    ["toucan"] = 300, ["chimpanzee"] = 300, ["penguin"] = 300, 
+    ["lava gecko"] = 300,
+    
+    -- Uncommon (Tier 2)
+    ["bird"] = 200, ["catfish"] = 200,
+    
+    -- Common (Tier 1)
+    ["chicken"] = 100, ["dog"] = 100, ["frog"] = 100, ["duckling"] = 100
+}
 
-    local numStr, suffix = string.match(str, "([%d%.]+)%s*([a-zA-Z]*)")
-    local num = tonumber(numStr)
-    if not num then return 0 end
-
-    suffix = string.upper(suffix or "")
-
-    if suffix == "K" then return num * 1e3
-    elseif suffix == "M" then return num * 1e6
-    elseif suffix == "B" then return num * 1e9
-    elseif suffix == "T" then return num * 1e12
-    end
-
-    return num
-end
-
--- 2. Format Angka untuk Tampilan
+-- 1. Format Angka untuk Tampilan Dashboard
 local function formatNumber(val)
     if not val then return "0" end
     local num = tonumber(string.match(tostring(val), "%d+%.?%d*")) or 0
@@ -51,14 +70,13 @@ local function formatNumber(val)
     return tostring(math.floor(num))
 end
 
--- 3. Pemindai Best Pet Khusus Nilai Riil (B / M / K)
+-- 2. Pemindai Nama Best Pet Berdasarkan Database Game Steal An Egg
 local function scanBestEquippedPet()
     local bestPetName = "-"
-    local maxStatValue = -1
-    local bestStatText = ""
+    local highestRank = -1
 
     pcall(function()
-        -- CARA 1: Scan Folder Data Internal Game
+        -- CARA A: Pemindaian Folder Internal Player (Folder Equipped/Pets)
         local searchFolders = {
             LocalPlayer:FindFirstChild("Pets"),
             LocalPlayer:FindFirstChild("EquippedPets"),
@@ -69,65 +87,37 @@ local function scanBestEquippedPet()
         for _, folder in ipairs(searchFolders) do
             if folder then
                 for _, pet in ipairs(folder:GetChildren()) do
-                    local statObj = pet:FindFirstChild("Multiplier") or pet:FindFirstChild("Income") or pet:FindFirstChild("Value") or pet:FindFirstChild("Boost") or pet:FindFirstChild("Stat")
-                    if statObj then
-                        local val = tonumber(statObj.Value) or parseRobloxValue(tostring(statObj.Value))
-                        if val > maxStatValue then
-                            maxStatValue = val
+                    local pNameLower = string.lower(pet.Name)
+                    for dbName, rank in pairs(PET_DATABASE) do
+                        if string.find(pNameLower, dbName) and rank > highestRank then
+                            highestRank = rank
                             bestPetName = pet.Name
-                            if val > 0 then
-                                bestStatText = formatNumber(val) .. "/s"
-                            end
                         end
                     end
                 end
             end
         end
 
-        -- CARA 2: Scan PlayerGui Dengan Filter Ketat
-        if bestPetName == "-" or maxStatValue <= 0 then
+        -- CARA B: Pemindaian Seluruh UI PlayerGui (Mencari Teks Nama Pet dari Database)
+        if bestPetName == "-" or highestRank <= 0 then
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
                 for _, label in ipairs(playerGui:GetDescendants()) do
                     if label:IsA("TextLabel") and label.Visible then
-                        local txt = label.Text
-                        local cleanTxt = string.lower(txt)
-
-                        -- Hanya proses teks yang mempunyai angka dan mengandung pembagi /s atau simbol $, B, M, K
-                        if string.match(txt, "%d") and (string.find(cleanTxt, "/s") or string.find(cleanTxt, "%$") or string.match(cleanTxt, "%d+%.?%d*[kmb]")) then
-                            local val = parseRobloxValue(txt)
-                            
-                            if val > maxStatValue then
+                        local txtLower = string.lower(label.Text)
+                        
+                        -- Cek apakah teks UI cocok dengan daftar nama pet
+                        for dbName, rank in pairs(PET_DATABASE) do
+                            if string.find(txtLower, dbName) then
                                 local parent = label.Parent
-                                local pName = string.lower(parent.Name)
+                                local pNameLower = string.lower(parent.Name)
                                 
-                                -- Pastikan parent frame bukan tombol/UI sistem
-                                local isSystemUI = string.find(pName, "button") or string.find(pName, "buy") or string.find(pName, "upgrade") or string.find(pName, "quick")
+                                -- Hindari membaca dari tombol/sistem UI global
+                                local isSystem = string.find(pNameLower, "button") or string.find(pNameLower, "shop") or string.find(pNameLower, "index")
                                 
-                                if not isSystemUI then
-                                    local foundName = ""
-
-                                    -- Cari nama pet di label terdekat
-                                    for _, sibling in ipairs(parent:GetChildren()) do
-                                        if sibling:IsA("TextLabel") and sibling ~= label then
-                                            local sTxt = sibling.Text
-                                            local sClean = string.lower(sTxt)
-                                            if sTxt ~= "" and not string.match(sTxt, "%d") and not string.find(sClean, "active") and not string.find(sClean, "equip") and not string.find(sClean, "fuse") and not string.find(sClean, "qa") then
-                                                foundName = sTxt
-                                                break
-                                            end
-                                        end
-                                    end
-
-                                    if foundName == "" and not string.find(pName, "frame") and not string.find(pName, "slot") and not string.find(pName, "scroll") then
-                                        foundName = parent.Name
-                                    end
-
-                                    if foundName ~= "" then
-                                        maxStatValue = val
-                                        bestPetName = foundName
-                                        bestStatText = txt
-                                    end
+                                if not isSystem and rank > highestRank then
+                                    highestRank = rank
+                                    bestPetName = label.Text
                                 end
                             end
                         end
@@ -137,18 +127,10 @@ local function scanBestEquippedPet()
         end
     end)
 
-    if bestPetName ~= "-" then
-        if bestStatText ~= "" then
-            return bestPetName .. " (" .. bestStatText .. ")"
-        else
-            return bestPetName
-        end
-    end
-
-    return "-"
+    return bestPetName
 end
 
--- 4. Membaca Money & Speed Player
+-- 3. Membaca Money & Speed Player
 local function getGameStats()
     local rawIncome = "0"
     local rawSpeed = "0"
@@ -175,7 +157,7 @@ local function getGameStats()
     return formatNumber(rawIncome) .. "/s", formatNumber(rawSpeed)
 end
 
--- 5. Status Pet Aktif
+-- 4. Membaca Status Pet Aktif
 local function getPetInfo()
     local petInfo = "0 Active"
     pcall(function()
@@ -192,7 +174,7 @@ local function getPetInfo()
     return petInfo
 end
 
--- 6. Pengiriman Ke Vercel
+-- 5. Pengiriman Data Ke Dashboard Vercel
 local function sendDashboardData()
     local payload = {
         pass = SECRET_PASS,
