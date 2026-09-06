@@ -1,5 +1,5 @@
 -- ==========================================================
--- STEAL AN EGG - COMPLETE 106 PETS & ACCURATE DETECTOR
+-- STEAL AN EGG - ACCURATE BEST PET & STAT SCANNER
 -- ==========================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -11,7 +11,7 @@ local UPDATE_INTERVAL = 5
 
 local startTime = os.time()
 
--- Database Lengkap 106 Pet (Rarity/Tier 1 hingga 106)
+-- Database Tier Pet (Order Rarity)
 local PET_DATABASE = {
     -- 🌲 Forest
     ["chicken"] = 1, ["dog"] = 2, ["bird"] = 3, ["owl"] = 4, ["raccoon"] = 5, ["bear"] = 6, ["fox"] = 7, ["brr brr patapim"] = 8,
@@ -42,7 +42,6 @@ local PET_DATABASE = {
     ["mecha scorpio"] = 101, ["mecha froggo"] = 102, ["mecha crawler"] = 103, ["mecha crocodon"] = 104, ["mecha krakenoid"] = 105, ["mecha dreadscale"] = 106
 }
 
--- Format angka untuk Income & Speed
 local function formatNumber(val)
     if not val then return "0" end
     local num = tonumber(string.match(tostring(val), "%d+%.?%d*")) or 0
@@ -54,14 +53,13 @@ local function formatNumber(val)
     return tostring(math.floor(num))
 end
 
--- Deteksi Best Pet yang ter-equip berdasarkan rank tertinggi
 local function scanBestEquippedPet()
     local bestPetName = "-"
     local highestRank = -1
-    local petStatText = ""
+    local extraInfo = ""
 
     pcall(function()
-        -- Pemindaian Folder Internal Character/Player
+        -- 1. Scan Folder Pet Character / Player
         local searchFolders = {
             LocalPlayer:FindFirstChild("Pets"),
             LocalPlayer:FindFirstChild("EquippedPets"),
@@ -74,13 +72,13 @@ local function scanBestEquippedPet()
                 for _, pet in ipairs(folder:GetChildren()) do
                     local pNameLower = string.lower(pet.Name)
                     for dbName, rank in pairs(PET_DATABASE) do
-                        if pNameLower == dbName and rank > highestRank then
+                        if string.find(pNameLower, dbName, 1, true) and rank > highestRank then
                             highestRank = rank
                             bestPetName = pet.Name
                             
-                            local statVal = pet:FindFirstChild("Multiplier") or pet:FindFirstChild("Income") or pet:FindFirstChild("Value")
+                            local statVal = pet:FindFirstChild("Multiplier") or pet:FindFirstChild("Income") or pet:FindFirstChild("Value") or pet:FindFirstChild("Weight")
                             if statVal then
-                                petStatText = " (" .. formatNumber(statVal.Value) .. "/s)"
+                                extraInfo = " (" .. formatNumber(statVal.Value) .. ")"
                             end
                         end
                     end
@@ -88,23 +86,21 @@ local function scanBestEquippedPet()
             end
         end
 
-        -- Pemindaian UI PlayerGui jika tidak terdeteksi di folder
+        -- 2. Scan UI jika belum ketemu dari folder
         if bestPetName == "-" then
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
                 for _, label in ipairs(playerGui:GetDescendants()) do
                     if label:IsA("TextLabel") and label.Visible then
-                        local txtLower = string.lower(label.Text)
+                        local txt = label.Text
+                        local txtLower = string.lower(txt)
                         
                         for dbName, rank in pairs(PET_DATABASE) do
-                            if string.match(txtLower, "%f[%w]" .. dbName .. "%f[%W]") and rank > highestRank then
-                                local parent = label.Parent
-                                local pNameLower = string.lower(parent.Name)
-                                
-                                local isSystem = string.find(pNameLower, "button") or string.find(pNameLower, "shop") or string.find(pNameLower, "index")
-                                if not isSystem then
+                            if string.find(txtLower, dbName, 1, true) and rank > highestRank then
+                                local parentName = string.lower(label.Parent.Name)
+                                if not string.find(parentName, "shop") and not string.find(parentName, "index") then
                                     highestRank = rank
-                                    bestPetName = label.Text
+                                    bestPetName = txt
                                 end
                             end
                         end
@@ -115,13 +111,12 @@ local function scanBestEquippedPet()
     end)
 
     if bestPetName ~= "-" then
-        return bestPetName .. petStatText
+        return bestPetName .. extraInfo
     end
 
     return "-"
 end
 
--- Ambil statistik Income dan Speed
 local function getGameStats()
     local rawIncome = "0"
     local rawSpeed = "0"
@@ -148,7 +143,6 @@ local function getGameStats()
     return formatNumber(rawIncome) .. "/s", formatNumber(rawSpeed)
 end
 
--- Ambil status pet aktif
 local function getPetInfo()
     local petInfo = "0 Active"
     pcall(function()
@@ -165,7 +159,6 @@ local function getPetInfo()
     return petInfo
 end
 
--- Pengiriman data berkala ke Vercel Dashboard
 local function sendDashboardData()
     local payload = {
         pass = SECRET_PASS,
