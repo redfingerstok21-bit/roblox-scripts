@@ -1,5 +1,5 @@
 -- ==========================================================
--- COMPLETE FIX: ULTIMATE BEST PET SCANNER (INVENTORY & DATA)
+-- STRICT BEST PET SCANNER (STRICT QA & UI BUTTON FILTER)
 -- ==========================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -11,12 +11,16 @@ local UPDATE_INTERVAL = 5
 
 local startTime = os.time()
 
--- 1. Konversi Teks Angka Roblox (K, M, B, T, Qa, Qi) Ke Angka Nyata
+-- 1. Konversi Format Angka Roblox Ke Angka Nyata (Sambil Memblokir "Qa" & UI Palsu)
 local function parseRobloxValue(str)
     if not str or type(str) ~= "string" then return 0 end
     
     local lower = string.lower(str)
-    if string.find(lower, "quick") or string.find(lower, "equip") or string.find(lower, "fuse") or string.find(lower, "buy") or string.find(lower, "sell") or string.find(lower, "would") then
+    
+    -- Filter ketat: Abaikan kata-kata UI, tombol, dan istilah "qa" / "quick"
+    if string.find(lower, "quick") or string.find(lower, "equip") or string.find(lower, "fuse") or 
+       string.find(lower, "buy") or string.find(lower, "sell") or string.find(lower, "would") or 
+       string.find(lower, "qa") or string.find(lower, "quality") or string.find(lower, "upgrade") then
         return 0
     end
 
@@ -30,20 +34,16 @@ local function parseRobloxValue(str)
     elseif suffix == "M" then return num * 1e6
     elseif suffix == "B" then return num * 1e9
     elseif suffix == "T" then return num * 1e12
-    elseif suffix == "QA" or suffix == "Q" then return num * 1e15
-    elseif suffix == "QI" then return num * 1e18
     end
 
     return num
 end
 
--- 2. Format Angka ke Tampilan Dashboard
+-- 2. Format Angka untuk Tampilan
 local function formatNumber(val)
     if not val then return "0" end
     local num = tonumber(string.match(tostring(val), "%d+%.?%d*")) or 0
 
-    if num >= 1e18 then return string.format("%.2fQi", num / 1e18) end
-    if num >= 1e15 then return string.format("%.2fQa", num / 1e15) end
     if num >= 1e12 then return string.format("%.2fT", num / 1e12) end
     if num >= 1e9  then return string.format("%.2fB", num / 1e9) end
     if num >= 1e6  then return string.format("%.2fM", num / 1e6) end
@@ -51,36 +51,32 @@ local function formatNumber(val)
     return tostring(math.floor(num))
 end
 
--- 3. Pemindai Nama & Stat Best Pet (Metode Menyeluruh)
+-- 3. Pemindai Best Pet Khusus Nilai Riil (B / M / K)
 local function scanBestEquippedPet()
     local bestPetName = "-"
     local maxStatValue = -1
     local bestStatText = ""
 
     pcall(function()
-        -- METODE A: Scan Folder Data Internal Game (Paling Akurat jika ada)
-        local searchRoots = {
-            LocalPlayer,
-            LocalPlayer.Character,
-            game:GetService("ReplicatedStorage")
+        -- CARA 1: Scan Folder Data Internal Game
+        local searchFolders = {
+            LocalPlayer:FindFirstChild("Pets"),
+            LocalPlayer:FindFirstChild("EquippedPets"),
+            LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Pets"),
+            LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Pets")
         }
 
-        for _, root in ipairs(searchRoots) do
-            if root then
-                for _, obj in ipairs(root:GetDescendants()) do
-                    if obj:IsA("Folder") or obj:IsA("Configuration") or obj:IsA("Model") then
-                        local oName = string.lower(obj.Name)
-                        if string.find(oName, "pet") or string.find(oName, "equip") or string.find(oName, "inventory") then
-                            for _, petItem in ipairs(obj:GetChildren()) do
-                                local statObj = petItem:FindFirstChild("Multiplier") or petItem:FindFirstChild("Income") or petItem:FindFirstChild("Value") or petItem:FindFirstChild("Boost") or petItem:FindFirstChild("Stat")
-                                if statObj then
-                                    local val = tonumber(statObj.Value) or parseRobloxValue(tostring(statObj.Value))
-                                    if val > maxStatValue then
-                                        maxStatValue = val
-                                        bestPetName = petItem.Name
-                                        bestStatText = formatNumber(val) .. "/s"
-                                    end
-                                end
+        for _, folder in ipairs(searchFolders) do
+            if folder then
+                for _, pet in ipairs(folder:GetChildren()) do
+                    local statObj = pet:FindFirstChild("Multiplier") or pet:FindFirstChild("Income") or pet:FindFirstChild("Value") or pet:FindFirstChild("Boost") or pet:FindFirstChild("Stat")
+                    if statObj then
+                        local val = tonumber(statObj.Value) or parseRobloxValue(tostring(statObj.Value))
+                        if val > maxStatValue then
+                            maxStatValue = val
+                            bestPetName = pet.Name
+                            if val > 0 then
+                                bestStatText = formatNumber(val) .. "/s"
                             end
                         end
                     end
@@ -88,51 +84,50 @@ local function scanBestEquippedPet()
             end
         end
 
-        -- METODE B: Scan Seluruh UI (Termasuk Frame Tersembunyi di PlayerGui)
+        -- CARA 2: Scan PlayerGui Dengan Filter Ketat
         if bestPetName == "-" or maxStatValue <= 0 then
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
                 for _, label in ipairs(playerGui:GetDescendants()) do
-                    if label:IsA("TextLabel") then
+                    if label:IsA("TextLabel") and label.Visible then
                         local txt = label.Text
                         local cleanTxt = string.lower(txt)
 
-                        -- Cari teks angka bernilai tinggi yang berpotensi merupakan stat pet
-                        if string.match(txt, "%d") and (string.find(cleanTxt, "/s") or string.find(cleanTxt, "%$") or string.match(cleanTxt, "%d+%.?%d*[kmbtq]")) then
+                        -- Hanya proses teks yang mempunyai angka dan mengandung pembagi /s atau simbol $, B, M, K
+                        if string.match(txt, "%d") and (string.find(cleanTxt, "/s") or string.find(cleanTxt, "%$") or string.match(cleanTxt, "%d+%.?%d*[kmb]")) then
                             local val = parseRobloxValue(txt)
                             
-                            -- Filter angka total akun agar tidak salah membaca saldo total
-                            local leaderIncome = 0
-                            if LocalPlayer:FindFirstChild("leaderstats") and LocalPlayer.leaderstats:FindFirstChild("Income") then
-                                leaderIncome = parseRobloxValue(tostring(LocalPlayer.leaderstats.Income.Value))
-                            end
-
-                            if val > maxStatValue and (leaderIncome == 0 or val < leaderIncome) then
+                            if val > maxStatValue then
                                 local parent = label.Parent
-                                local pName = parent.Name
-                                local foundName = ""
+                                local pName = string.lower(parent.Name)
+                                
+                                -- Pastikan parent frame bukan tombol/UI sistem
+                                local isSystemUI = string.find(pName, "button") or string.find(pName, "buy") or string.find(pName, "upgrade") or string.find(pName, "quick")
+                                
+                                if not isSystemUI then
+                                    local foundName = ""
 
-                                -- Pindai label lain di dalam frame yang sama untuk mencari Nama Pet
-                                for _, sibling in ipairs(parent:GetChildren()) do
-                                    if sibling:IsA("TextLabel") and sibling ~= label then
-                                        local sTxt = sibling.Text
-                                        local sClean = string.lower(sTxt)
-                                        if sTxt ~= "" and not string.match(sTxt, "%d") and not string.find(sClean, "active") and not string.find(sClean, "equip") and not string.find(sClean, "fuse") then
-                                            foundName = sTxt
-                                            break
+                                    -- Cari nama pet di label terdekat
+                                    for _, sibling in ipairs(parent:GetChildren()) do
+                                        if sibling:IsA("TextLabel") and sibling ~= label then
+                                            local sTxt = sibling.Text
+                                            local sClean = string.lower(sTxt)
+                                            if sTxt ~= "" and not string.match(sTxt, "%d") and not string.find(sClean, "active") and not string.find(sClean, "equip") and not string.find(sClean, "fuse") and not string.find(sClean, "qa") then
+                                                foundName = sTxt
+                                                break
+                                            end
                                         end
                                     end
-                                end
 
-                                -- Jika nama di dalam frame tidak ketemu, gunakan nama frame itu sendiri
-                                if foundName == "" and not string.find(string.lower(pName), "frame") and not string.find(string.lower(pName), "slot") and not string.find(string.lower(pName), "scroll") then
-                                    foundName = pName
-                                end
+                                    if foundName == "" and not string.find(pName, "frame") and not string.find(pName, "slot") and not string.find(pName, "scroll") then
+                                        foundName = parent.Name
+                                    end
 
-                                if foundName ~= "" then
-                                    maxStatValue = val
-                                    bestPetName = foundName
-                                    bestStatText = txt
+                                    if foundName ~= "" then
+                                        maxStatValue = val
+                                        bestPetName = foundName
+                                        bestStatText = txt
+                                    end
                                 end
                             end
                         end
