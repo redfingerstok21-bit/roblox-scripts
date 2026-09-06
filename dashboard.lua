@@ -1,5 +1,5 @@
 -- ==========================================================
--- STEAL AN EGG - SPECIFIC BEST PET DETECTOR
+-- STEAL AN EGG - 106 PETS DATABASE & BEST VALUE DETECTOR
 -- ==========================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -11,54 +11,50 @@ local UPDATE_INTERVAL = 5
 
 local startTime = os.time()
 
--- Database Hirarki Rarity & Pet Game "Steal an Egg" (Nilai lebih tinggi = Income/Value lebih tinggi)
+-- Database Lengkap 106 Pet (Nilai ranking 1-106 berdasarkan urutan keunggulan bioma & tier)
 local PET_DATABASE = {
-    -- Divine (Tier 10)
-    ["kitsune"] = 1000, ["unicorn"] = 1000, ["dreadscale"] = 1000, ["mecha dreadscale"] = 1000,
+    -- 🌲 Forest
+    ["chicken"] = 1, ["dog"] = 2, ["bird"] = 3, ["owl"] = 4, ["raccoon"] = 5, ["bear"] = 6, ["fox"] = 7, ["brr brr patapim"] = 8,
     
-    -- Divine / High Secret Variants
-    ["nightflame"] = 950, ["phoenix"] = 950,
+    -- 🌊 Lake
+    ["frog"] = 9, ["duckling"] = 10, ["catfish"] = 11, ["turtle"] = 12, ["trulimero trulicina"] = 13, ["swan"] = 14, ["axolotl"] = 15, ["leviathan"] = 16,
     
-    -- Eternal (Tier 9)
-    ["gorilla king"] = 900, ["ice dragon"] = 900, ["oni tiger"] = 900, 
-    ["eternal moon dragon"] = 900, ["mosasaurus"] = 900, ["krakenoid"] = 900,
+    -- 🏜️ Desert
+    ["jerboa"] = 17, ["fennec"] = 18, ["camel"] = 19, ["tob tobi tob tob"] = 20, ["snake"] = 21, ["scorpion"] = 22, ["sand spider"] = 23, ["royal sphinx"] = 24,
     
-    -- Secret (Tier 8)
-    ["king snake"] = 800, ["yeti"] = 800, ["magma dragon"] = 800, 
-    ["stag"] = 800, ["cosmic dragon"] = 800, ["mutant shark"] = 800, ["crocodon"] = 800,
+    -- 🌴 Jungle
+    ["toucan"] = 25, ["chimpanzee"] = 26, ["crocodile"] = 27, ["gorilla"] = 28, ["orangutini ananassini"] = 29, ["spider"] = 30, ["tiger"] = 31, ["king snake"] = 32,
     
-    -- Cosmic (Tier 7)
-    ["leviathan"] = 700, ["royal sphinx"] = 700, ["king mammoth"] = 700, 
-    ["ember mammoth"] = 700, ["koi"] = 700, ["snowy owl"] = 700, ["crawler"] = 700,
+    -- ❄️ Snow
+    ["penguin"] = 33, ["walrus"] = 34, ["polar bear"] = 35, ["sabertooth tiger"] = 36, ["mammoth"] = 37, ["king mammoth"] = 38, ["yeti"] = 39, ["ice dragon"] = 40,
     
-    -- Mythic (Tier 6)
-    ["tiger"] = 600, ["spider"] = 600, ["sabertooth tiger"] = 600, ["mammoth"] = 600,
-    ["chillin chilli"] = 600, ["red panda"] = 600, ["cosmic gorilla"] = 600, 
-    ["ankylosaurus"] = 600, ["froggo"] = 600,
+    -- 🌋 Volcano
+    ["lava gecko"] = 41, ["lava frog"] = 42, ["flaming bull"] = 43, ["lava iguana"] = 44, ["chillin chilli"] = 45, ["cerberus"] = 46, ["phoenix"] = 47, ["lava dragon"] = 48,
     
-    -- Legendary (Tier 5)
-    ["brr brr patapim"] = 500, ["axolotl"] = 500, ["snake"] = 500, ["parrot"] = 500,
-    ["polar bear"] = 500, ["fire snake"] = 500, ["salamander"] = 500, 
-    ["cosmic gecko"] = 500, ["t-rex"] = 500, ["scorpio"] = 500,
+    -- 🌊 Abyss Ocean
+    ["parrotfish"] = 49, ["swordfish"] = 50, ["shark"] = 51, ["orca"] = 52, ["whale shark"] = 53, ["beluga whale"] = 54, ["kraken"] = 55, ["el maja"] = 56,
     
-    -- Epic (Tier 4)
-    ["fox"] = 400, ["bear"] = 400, ["trulimero trulicina"] = 400, ["swan"] = 400,
-    ["tob tobi tob tob"] = 400, ["crocodile"] = 400, ["walrus"] = 400, 
-    ["magma turtle"] = 400, ["crane"] = 400,
+    -- 🦖 Prehistoric
+    ["dodo"] = 57, ["pterodactyl"] = 58, ["ankylosaurus"] = 59, ["triceratops"] = 60, ["bronto"] = 61, ["tralaledon"] = 62, ["trex"] = 63, ["t-rex"] = 63, ["mosasaurus"] = 64,
     
-    -- Rare (Tier 3)
-    ["owl"] = 300, ["raccoon"] = 300, ["turtle"] = 300, ["camel"] = 300,
-    ["toucan"] = 300, ["chimpanzee"] = 300, ["penguin"] = 300, 
-    ["lava gecko"] = 300,
+    -- 🌌 Cosmic
+    ["centapede"] = 65, ["cosmic gecko"] = 66, ["cosmic gorilla"] = 67, ["la vacca saturno saturnita"] = 68, ["cosmic dragon"] = 69, ["cosmic skeleton boss"] = 70, ["eternal lunar dragon"] = 71, ["unicorn"] = 72,
     
-    -- Uncommon (Tier 2)
-    ["bird"] = 200, ["catfish"] = 200,
+    -- 🌸 Cherry Blossom
+    ["crane"] = 73, ["salamander"] = 74, ["red panda"] = 75, ["koi"] = 76, ["snowy owl"] = 77, ["stag"] = 78, ["oni tiger"] = 79, ["kitsune"] = 80,
     
-    -- Common (Tier 1)
-    ["chicken"] = 100, ["dog"] = 100, ["frog"] = 100, ["duckling"] = 100
+    -- 🗿 Titan Temple
+    ["crustacia"] = 81, ["spideron"] = 82, ["bladehide"] = 83, ["mantaris"] = 84, ["rhinotaur"] = 85, ["mutant shark"] = 86, ["gorilla king"] = 87, ["nightflame"] = 88,
+    
+    -- 🧠 Brainrot Eggs
+    ["tung tung sahur"] = 89, ["bananita dolphinita"] = 90, ["belula beluga"] = 91, ["mangolini parrochini"] = 92, ["bomboclat crocolat"] = 93, ["strawberry elephant"] = 94,
+    
+    -- 👾 Monster Eggs
+    ["scorpio"] = 95, ["froggo"] = 96, ["crawler"] = 97, ["crocodon"] = 98, ["krakenoid"] = 99, ["dreadscale"] = 100,
+    ["mecha scorpio"] = 101, ["mecha froggo"] = 102, ["mecha crawler"] = 103, ["mecha crocodon"] = 104, ["mecha krakenoid"] = 105, ["mecha dreadscale"] = 106
 }
 
--- 1. Format Angka untuk Tampilan Dashboard
+-- 1. Format Angka Tampilan Dashboard
 local function formatNumber(val)
     if not val then return "0" end
     local num = tonumber(string.match(tostring(val), "%d+%.?%d*")) or 0
@@ -70,13 +66,13 @@ local function formatNumber(val)
     return tostring(math.floor(num))
 end
 
--- 2. Pemindai Nama Best Pet Berdasarkan Database Game Steal An Egg
+-- 2. Deteksi Pet Terbaik Berdasarkan Rarity/Value Dari Database 106 Pet
 local function scanBestEquippedPet()
     local bestPetName = "-"
     local highestRank = -1
 
     pcall(function()
-        -- CARA A: Pemindaian Folder Internal Player (Folder Equipped/Pets)
+        -- CARA A: Pemindaian Folder Internal Player (Pets / Equipped)
         local searchFolders = {
             LocalPlayer:FindFirstChild("Pets"),
             LocalPlayer:FindFirstChild("EquippedPets"),
@@ -98,7 +94,7 @@ local function scanBestEquippedPet()
             end
         end
 
-        -- CARA B: Pemindaian Seluruh UI PlayerGui (Mencari Teks Nama Pet dari Database)
+        -- CARA B: Pemindaian Seluruh UI PlayerGui (Mencocokkan Teks Nama Pet)
         if bestPetName == "-" or highestRank <= 0 then
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
@@ -106,13 +102,11 @@ local function scanBestEquippedPet()
                     if label:IsA("TextLabel") and label.Visible then
                         local txtLower = string.lower(label.Text)
                         
-                        -- Cek apakah teks UI cocok dengan daftar nama pet
                         for dbName, rank in pairs(PET_DATABASE) do
                             if string.find(txtLower, dbName) then
                                 local parent = label.Parent
                                 local pNameLower = string.lower(parent.Name)
                                 
-                                -- Hindari membaca dari tombol/sistem UI global
                                 local isSystem = string.find(pNameLower, "button") or string.find(pNameLower, "shop") or string.find(pNameLower, "index")
                                 
                                 if not isSystem and rank > highestRank then
@@ -157,7 +151,7 @@ local function getGameStats()
     return formatNumber(rawIncome) .. "/s", formatNumber(rawSpeed)
 end
 
--- 4. Membaca Status Pet Aktif
+-- 4. Status Pet Aktif
 local function getPetInfo()
     local petInfo = "0 Active"
     pcall(function()
@@ -174,7 +168,7 @@ local function getPetInfo()
     return petInfo
 end
 
--- 5. Pengiriman Data Ke Dashboard Vercel
+-- 5. Pengiriman Ke Vercel
 local function sendDashboardData()
     local payload = {
         pass = SECRET_PASS,
