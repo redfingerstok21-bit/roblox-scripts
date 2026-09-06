@@ -1,5 +1,5 @@
 -- ==========================================================
--- BEST VALUE PET + DIVINE RARITY SCANNER
+-- REVISED DASHBOARD SCRIPT (FIXED STATS & PET FILTER)
 -- ==========================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -11,94 +11,90 @@ local UPDATE_INTERVAL = 5
 
 local startTime = os.time()
 
--- 1. Memindai Best Value Pet & Divine Rarity dari Inventory / PlayerGui
+-- 1. Scan Best Value Pet & Divine Rarity (Abaikan UI Tombol)
 local function scanPetsData()
     local bestPetName = "-"
     local bestDivineName = "-"
-    
-    local highestValue = 0
-    local highestDivineValue = 0
 
     pcall(function()
         local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
         if playerGui then
-            -- Cari di UI Pet / Inventory Frame
             for _, label in ipairs(playerGui:GetDescendants()) do
-                if label:IsA("TextLabel") then
-                    local text = label.Text
+                if label:IsA("TextLabel") and label.Visible then
+                    local txt = label.Text
+                    local parentName = label.Parent.Name
                     
-                    -- Deteksi Pet dengan Stat Value ($/s atau x Boost)
-                    if string.find(text, "%$") or string.find(text, "/s") or string.find(text, "x") then
-                        local parent = label.Parent
-                        local petName = parent:FindFirstChild("PetName") or parent:FindFirstChild("Title") or parent
+                    -- Filter out tombol UI (seperti PlusEquip, Buy, Equip)
+                    if not string.find(txt, "PlusEquip") and not string.find(txt, "EQUIP") and not string.find(txt, "Buy") then
+                        -- Cek jika ada Rarity Divine
+                        if string.find(string.lower(txt), "divine") then
+                            bestDivineName = label.Parent:FindFirstChild("PetName") and label.Parent.PetName.Text or txt
+                        end
                         
-                        -- Cek Rarity Divine
-                        local isDivine = false
-                        for _, child in ipairs(parent:GetDescendants()) do
-                            if child:IsA("TextLabel") and string.find(string.lower(child.Text), "divine") then
-                                isDivine = true
-                                break
+                        -- Mengambil nama pet pertama yang valid dari inventory / equipped
+                        if bestPetName == "-" and (string.find(parentName, "Pet") or string.find(parentName, "Slot") or string.find(parentName, "Item")) then
+                            if txt ~= "" and not tonumber(txt) then
+                                bestPetName = txt
                             end
-                        end
-
-                        if isDivine then
-                            bestDivineName = petName.Name ~= "" and petName.Name or "Divine Pet"
-                        end
-
-                        -- Asumsi nama Pet teratas adalah Best Pet
-                        if bestPetName == "-" and petName.Name ~= "" then
-                            bestPetName = petName.Name .. " (" .. text .. ")"
                         end
                     end
                 end
             end
         end
     end)
-
-    -- Alternatif scanning via folder internal Player
-    if bestPetName == "-" then
-        local petFolder = LocalPlayer:FindFirstChild("Pets") or LocalPlayer:FindFirstChild("Inventory")
-        if petFolder then
-            for _, pet in ipairs(petFolder:GetChildren()) do
-                local rarity = pet:FindFirstChild("Rarity")
-                if rarity and string.lower(rarity.Value) == "divine" then
-                    bestDivineName = pet.Name
-                end
-                bestPetName = pet.Name
-            end
-        end
-    end
 
     return bestPetName, bestDivineName
 end
 
--- 2. Membaca Stats Money & Speed
+-- 2. Membaca Stats Income/s dan Speed Secara Fleksibel
 local function getGameStats()
-    local rawMoney = 0
-    local rawSpeed = 0
+    local incomeText = "0/s"
+    local speedText = "0"
 
+    -- Cara 1: Cek dari Humanoid WalkSpeed & Leaderstats
     pcall(function()
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        if playerGui then
-            for _, label in ipairs(playerGui:GetDescendants()) do
-                if label:IsA("TextLabel") and (label.Text == LocalPlayer.Name or label.Text == LocalPlayer.DisplayName) then
-                    for _, sibling in ipairs(label.Parent:GetChildren()) do
-                        if sibling:IsA("TextLabel") and sibling ~= label then
-                            local txt = sibling.Text
-                            if string.find(txt, "M") or string.find(txt, "B") or string.find(txt, "T") or string.find(txt, "K") then
-                                if rawMoney == 0 then rawMoney = txt else rawSpeed = txt end
-                            end
-                        end
-                    end
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") then
+            speedText = tostring(math.floor(char.Humanoid.WalkSpeed))
+        end
+        
+        local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+        if leaderstats then
+            for _, stat in ipairs(leaderstats:GetChildren()) do
+                local name = string.lower(stat.Name)
+                if string.find(name, "money") or string.find(name, "cash") or string.find(name, "income") then
+                    incomeText = tostring(stat.Value) .. "/s"
+                elseif string.find(name, "speed") then
+                    speedText = tostring(stat.Value)
                 end
             end
         end
     end)
 
-    return tostring(rawMoney), tostring(rawSpeed)
+    -- Cara 2: Pindai Seluruh UI Teks jika Leaderstats kosong
+    if incomeText == "0/s" or speedText == "0" then
+        pcall(function()
+            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                for _, label in ipairs(playerGui:GetDescendants()) do
+                    if label:IsA("TextLabel") and label.Visible then
+                        local txt = label.Text
+                        -- Mencari pola format angka K/M/B/T dengan /s atau SPD
+                        if string.find(txt, "/s") or (string.find(txt, "M") and string.find(label.Parent.Name, "Money")) then
+                            incomeText = txt
+                        elseif (string.find(txt, "SPD") or string.find(label.Parent.Name, "Speed")) and not string.find(txt, "Plus") then
+                            speedText = txt
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    return incomeText, speedText
 end
 
--- 3. Membaca Pet Active
+-- 3. Membaca Active Equipped Pets
 local function getPetInfo()
     local petInfo = "No Pets"
     pcall(function()
@@ -115,10 +111,10 @@ local function getPetInfo()
     return petInfo
 end
 
--- 4. Pengiriman Data
+-- 4. Pengiriman Data ke Dashboard Vercel
 local function sendDashboardData()
     local bestPet, divinePet = scanPetsData()
-    local moneySecText, speedText = getGameStats()
+    local incomeSec, currentSpeed = getGameStats()
     local petInfo = getPetInfo()
 
     local elapsed = os.time() - startTime
@@ -129,8 +125,8 @@ local function sendDashboardData()
         username = LocalPlayer.Name,
         bestPet = bestPet,
         divinePet = divinePet,
-        cash = moneySecText,
-        speed = speedText,
+        cash = incomeSec,
+        speed = currentSpeed,
         equippedPets = petInfo,
         sessionTime = sessionFormatted
     }
@@ -148,7 +144,7 @@ local function sendDashboardData()
     end
 end
 
--- Loop Pengiriman
+-- Loop Pengiriman Data
 task.spawn(function()
     while true do
         sendDashboardData()
