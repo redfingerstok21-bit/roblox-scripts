@@ -1,5 +1,5 @@
 -- ==========================================================
--- STEAL AN EGG - 106 PETS DATABASE & BEST VALUE DETECTOR
+-- STEAL AN EGG - COMPLETE 106 PETS & ACCURATE DETECTOR
 -- ==========================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -11,50 +11,38 @@ local UPDATE_INTERVAL = 5
 
 local startTime = os.time()
 
--- Database Lengkap 106 Pet (Nilai ranking 1-106 berdasarkan urutan keunggulan bioma & tier)
+-- Database Lengkap 106 Pet (Rarity/Tier 1 hingga 106)
 local PET_DATABASE = {
     -- 🌲 Forest
     ["chicken"] = 1, ["dog"] = 2, ["bird"] = 3, ["owl"] = 4, ["raccoon"] = 5, ["bear"] = 6, ["fox"] = 7, ["brr brr patapim"] = 8,
-    
     -- 🌊 Lake
     ["frog"] = 9, ["duckling"] = 10, ["catfish"] = 11, ["turtle"] = 12, ["trulimero trulicina"] = 13, ["swan"] = 14, ["axolotl"] = 15, ["leviathan"] = 16,
-    
     -- 🏜️ Desert
     ["jerboa"] = 17, ["fennec"] = 18, ["camel"] = 19, ["tob tobi tob tob"] = 20, ["snake"] = 21, ["scorpion"] = 22, ["sand spider"] = 23, ["royal sphinx"] = 24,
-    
     -- 🌴 Jungle
     ["toucan"] = 25, ["chimpanzee"] = 26, ["crocodile"] = 27, ["gorilla"] = 28, ["orangutini ananassini"] = 29, ["spider"] = 30, ["tiger"] = 31, ["king snake"] = 32,
-    
     -- ❄️ Snow
     ["penguin"] = 33, ["walrus"] = 34, ["polar bear"] = 35, ["sabertooth tiger"] = 36, ["mammoth"] = 37, ["king mammoth"] = 38, ["yeti"] = 39, ["ice dragon"] = 40,
-    
     -- 🌋 Volcano
     ["lava gecko"] = 41, ["lava frog"] = 42, ["flaming bull"] = 43, ["lava iguana"] = 44, ["chillin chilli"] = 45, ["cerberus"] = 46, ["phoenix"] = 47, ["lava dragon"] = 48,
-    
     -- 🌊 Abyss Ocean
     ["parrotfish"] = 49, ["swordfish"] = 50, ["shark"] = 51, ["orca"] = 52, ["whale shark"] = 53, ["beluga whale"] = 54, ["kraken"] = 55, ["el maja"] = 56,
-    
     -- 🦖 Prehistoric
     ["dodo"] = 57, ["pterodactyl"] = 58, ["ankylosaurus"] = 59, ["triceratops"] = 60, ["bronto"] = 61, ["tralaledon"] = 62, ["trex"] = 63, ["t-rex"] = 63, ["mosasaurus"] = 64,
-    
     -- 🌌 Cosmic
     ["centapede"] = 65, ["cosmic gecko"] = 66, ["cosmic gorilla"] = 67, ["la vacca saturno saturnita"] = 68, ["cosmic dragon"] = 69, ["cosmic skeleton boss"] = 70, ["eternal lunar dragon"] = 71, ["unicorn"] = 72,
-    
     -- 🌸 Cherry Blossom
     ["crane"] = 73, ["salamander"] = 74, ["red panda"] = 75, ["koi"] = 76, ["snowy owl"] = 77, ["stag"] = 78, ["oni tiger"] = 79, ["kitsune"] = 80,
-    
     -- 🗿 Titan Temple
     ["crustacia"] = 81, ["spideron"] = 82, ["bladehide"] = 83, ["mantaris"] = 84, ["rhinotaur"] = 85, ["mutant shark"] = 86, ["gorilla king"] = 87, ["nightflame"] = 88,
-    
     -- 🧠 Brainrot Eggs
     ["tung tung sahur"] = 89, ["bananita dolphinita"] = 90, ["belula beluga"] = 91, ["mangolini parrochini"] = 92, ["bomboclat crocolat"] = 93, ["strawberry elephant"] = 94,
-    
     -- 👾 Monster Eggs
     ["scorpio"] = 95, ["froggo"] = 96, ["crawler"] = 97, ["crocodon"] = 98, ["krakenoid"] = 99, ["dreadscale"] = 100,
     ["mecha scorpio"] = 101, ["mecha froggo"] = 102, ["mecha crawler"] = 103, ["mecha crocodon"] = 104, ["mecha krakenoid"] = 105, ["mecha dreadscale"] = 106
 }
 
--- 1. Format Angka Tampilan Dashboard
+-- Format angka untuk Income & Speed
 local function formatNumber(val)
     if not val then return "0" end
     local num = tonumber(string.match(tostring(val), "%d+%.?%d*")) or 0
@@ -66,13 +54,14 @@ local function formatNumber(val)
     return tostring(math.floor(num))
 end
 
--- 2. Deteksi Pet Terbaik Berdasarkan Rarity/Value Dari Database 106 Pet
+-- Deteksi Best Pet yang ter-equip berdasarkan rank tertinggi
 local function scanBestEquippedPet()
     local bestPetName = "-"
     local highestRank = -1
+    local petStatText = ""
 
     pcall(function()
-        -- CARA A: Pemindaian Folder Internal Player (Pets / Equipped)
+        -- Pemindaian Folder Internal Character/Player
         local searchFolders = {
             LocalPlayer:FindFirstChild("Pets"),
             LocalPlayer:FindFirstChild("EquippedPets"),
@@ -85,17 +74,22 @@ local function scanBestEquippedPet()
                 for _, pet in ipairs(folder:GetChildren()) do
                     local pNameLower = string.lower(pet.Name)
                     for dbName, rank in pairs(PET_DATABASE) do
-                        if string.find(pNameLower, dbName) and rank > highestRank then
+                        if pNameLower == dbName and rank > highestRank then
                             highestRank = rank
                             bestPetName = pet.Name
+                            
+                            local statVal = pet:FindFirstChild("Multiplier") or pet:FindFirstChild("Income") or pet:FindFirstChild("Value")
+                            if statVal then
+                                petStatText = " (" .. formatNumber(statVal.Value) .. "/s)"
+                            end
                         end
                     end
                 end
             end
         end
 
-        -- CARA B: Pemindaian Seluruh UI PlayerGui (Mencocokkan Teks Nama Pet)
-        if bestPetName == "-" or highestRank <= 0 then
+        -- Pemindaian UI PlayerGui jika tidak terdeteksi di folder
+        if bestPetName == "-" then
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
                 for _, label in ipairs(playerGui:GetDescendants()) do
@@ -103,13 +97,12 @@ local function scanBestEquippedPet()
                         local txtLower = string.lower(label.Text)
                         
                         for dbName, rank in pairs(PET_DATABASE) do
-                            if string.find(txtLower, dbName) then
+                            if string.match(txtLower, "%f[%w]" .. dbName .. "%f[%W]") and rank > highestRank then
                                 local parent = label.Parent
                                 local pNameLower = string.lower(parent.Name)
                                 
                                 local isSystem = string.find(pNameLower, "button") or string.find(pNameLower, "shop") or string.find(pNameLower, "index")
-                                
-                                if not isSystem and rank > highestRank then
+                                if not isSystem then
                                     highestRank = rank
                                     bestPetName = label.Text
                                 end
@@ -121,10 +114,14 @@ local function scanBestEquippedPet()
         end
     end)
 
-    return bestPetName
+    if bestPetName ~= "-" then
+        return bestPetName .. petStatText
+    end
+
+    return "-"
 end
 
--- 3. Membaca Money & Speed Player
+-- Ambil statistik Income dan Speed
 local function getGameStats()
     local rawIncome = "0"
     local rawSpeed = "0"
@@ -151,7 +148,7 @@ local function getGameStats()
     return formatNumber(rawIncome) .. "/s", formatNumber(rawSpeed)
 end
 
--- 4. Status Pet Aktif
+-- Ambil status pet aktif
 local function getPetInfo()
     local petInfo = "0 Active"
     pcall(function()
@@ -168,7 +165,7 @@ local function getPetInfo()
     return petInfo
 end
 
--- 5. Pengiriman Ke Vercel
+-- Pengiriman data berkala ke Vercel Dashboard
 local function sendDashboardData()
     local payload = {
         pass = SECRET_PASS,
